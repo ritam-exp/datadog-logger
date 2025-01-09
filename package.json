@@ -1,0 +1,29 @@
+{
+  "name": "@exp/datadog-logger",
+  "version": "1.0.0",
+  "description": "Log to Datadog",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "type": "commonjs",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "lint": "tsc"
+  },
+  "keywords": [
+    "datadog"
+  ],
+  "author": "Ritam Chakraborty",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": "18"
+  }
+}

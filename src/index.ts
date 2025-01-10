@@ -26,14 +26,16 @@ export class Logger {
         this.log(message, 'warn', tags);
     }
 
-    public error(message: string | object, tags: object | string[]): void {
+    public error(message: string | object, tags?: object | string[]): void {
         this.log(message, 'error', tags);
     }
 
     public async flush() {
         if (!this.sendToDatadog) return;
+        const logsToSend = [...this.logMessages];
+        const promises = [];
 
-        for (const logMessage of this.logMessages) {
+        for (const logMessage of logsToSend) {
             const formattedTags = this.getFormattedTags(logMessage.tags);
             const payload = {
                 message: logMessage.message,
@@ -48,16 +50,18 @@ export class Logger {
                     'Content-Type': 'application/json'
                 }
             };
+            const promise = axios.post(
+                `${this.datadogUrl}?dd-api-key=${this.datadogApiKey}`,
+                payload,
+                config,
+            );
+            promises.push(promise);
+        }
 
-            try {
-                await axios.post(
-                    `${this.datadogUrl}?dd-api-key=${this.datadogApiKey}`,
-                    payload,
-                    config,
-                );
-            } catch (error) {
-                throw new Error(`Unable to send logs to Datadog. Payload: ${JSON.stringify(payload)} Error: ${error}`);
-            }
+        const responses = await Promise.allSettled(promises);
+
+        for (const response of responses) {
+            this.logMessages.shift();
         }
     }
 
@@ -76,22 +80,47 @@ export class Logger {
     }
 
     private log(message: string | object, level: 'info' | 'warn' | 'error', tags?: object | string[]): void {
-        if (!this.sendToDatadog) {
-            switch (level) {
-                case "info":
-                    console.info(message);
-                    return;
-                case "warn":
-                    console.warn(message);
-                    return;
-                case "error":
-                    console.error(message);
-                    return;
-                default:
-                    return;
-            }
+        if (!message || (typeof message === 'string' && message.length === 0)) {
+            throw new Error("Cannot send empty log");
         }
 
-        this.logMessages.push({message, level, tags});
+        if (this.sendToDatadog) {
+            this.logMessages.push({message, level, tags});
+            return;
+        }
+
+        const formattedLogMessage: string = this.getFormattedLogMessage(message, level);
+
+        switch (level) {
+            case "info":
+                console.info(formattedLogMessage);
+                return;
+            case "warn":
+                console.warn(formattedLogMessage);
+                return;
+            case "error":
+                console.error(formattedLogMessage);
+                return;
+            default:
+                return;
+        }
+    }
+
+    private getFormattedLogMessage(message: string | object, level: 'info' | 'warn' | 'error'): string {
+        const options: Intl.DateTimeFormatOptions = {
+            weekday: 'long',
+            year: "numeric",
+            month: "numeric",
+            day: "numeric",
+            hour: "numeric",
+            minute: "numeric",
+            second: "numeric",
+            hour12: false,
+            timeZoneName: "short"
+        };
+        const dateTimeFormatter = new Intl.DateTimeFormat("en-CA", options);
+        const formattedDate = dateTimeFormatter.format(new Date());
+        const formatedMessage: string = typeof message === 'object' ? JSON.stringify(message) : message;
+        return `${formattedDate} :: ${level.toUpperCase().padStart(5, " ")} :: ${formatedMessage}`;
     }
 }

@@ -26,6 +26,26 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value  ));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
 
 // src/index.ts
 var index_exports = {};
@@ -41,8 +61,8 @@ var Logger = class {
     this.hostname = hostname;
     this.environment = environment;
     this.sendToDatadog = sendToDatadog;
+    this.logMessages = new Array();
   }
-  logMessages = new Array();
   info(message, tags) {
     this.log(message, "info", tags);
   }
@@ -52,36 +72,38 @@ var Logger = class {
   error(message, tags) {
     this.log(message, "error", tags);
   }
-  async flush() {
-    if (!this.sendToDatadog) return;
-    const logsToSend = [...this.logMessages];
-    const promises = [];
-    for (const logMessage of logsToSend) {
-      const formattedTags = this.getFormattedTags(logMessage.tags);
-      const payload = {
-        message: logMessage.message,
-        ddsource: "twilio",
-        ddtags: `index:twilio,env:${this.environment},${formattedTags}`,
-        hostname: this.hostname,
-        service: "twilio-service",
-        status: logMessage.level
-      };
-      const config = {
-        headers: {
-          "Content-Type": "application/json"
-        }
-      };
-      const promise = import_axios.default.post(
-        `${this.datadogUrl}?dd-api-key=${this.datadogApiKey}`,
-        payload,
-        config
-      );
-      promises.push(promise);
-    }
-    const responses = await Promise.allSettled(promises);
-    for (const response of responses) {
-      this.logMessages.shift();
-    }
+  flush() {
+    return __async(this, null, function* () {
+      if (!this.sendToDatadog) return;
+      const logsToSend = [...this.logMessages];
+      const promises = [];
+      for (const logMessage of logsToSend) {
+        const formattedTags = this.getFormattedTags(logMessage.tags);
+        const payload = {
+          message: logMessage.message,
+          ddsource: "twilio",
+          ddtags: `index:twilio,env:${this.environment},${formattedTags}`,
+          hostname: this.hostname,
+          service: "twilio-service",
+          status: logMessage.level
+        };
+        const config = {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        };
+        const promise = import_axios.default.post(
+          `${this.datadogUrl}?dd-api-key=${this.datadogApiKey}`,
+          payload,
+          config
+        );
+        promises.push(promise);
+      }
+      const responses = yield Promise.allSettled(promises);
+      for (const response of responses) {
+        this.logMessages.shift();
+      }
+    });
   }
   getFormattedTags(tags) {
     if (typeof tags === "object") {
@@ -89,7 +111,7 @@ var Logger = class {
         ([key, value]) => typeof value === "object" ? `${key}:${JSON.stringify(value)}` : `${key}:${value}`
       ).join(",");
     }
-    return tags ?? "";
+    return tags != null ? tags : "";
   }
   log(message, level, tags) {
     if (!message || typeof message === "string" && message.length === 0) {
